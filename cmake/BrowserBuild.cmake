@@ -10,30 +10,39 @@ set(AOE_BROWSER_TEST_PYTHON "python3" CACHE STRING
 find_program(AOE_NPM_EXECUTABLE npm REQUIRED)
 set(AOE_NOSTR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/web/nostr")
 set(AOE_NOSTR_BUNDLE "${CMAKE_BINARY_DIR}/nostr/aoe_nostr.js")
+set(AOE_NAPPLET_NOSTR_BUNDLE
+    "${CMAKE_BINARY_DIR}/nostr/aoe_napplet_nostr.js")
 set(AOE_NOSTR_INPUTS
     "${AOE_NOSTR_SOURCE_DIR}/package.json"
     "${AOE_NOSTR_SOURCE_DIR}/package-lock.json"
     "${AOE_NOSTR_SOURCE_DIR}/tsconfig.json"
     "${AOE_NOSTR_SOURCE_DIR}/scripts/build.mjs"
+    "${AOE_NOSTR_SOURCE_DIR}/src/browser-event-author.ts"
     "${AOE_NOSTR_SOURCE_DIR}/src/bridge.ts"
+    "${AOE_NOSTR_SOURCE_DIR}/src/event-author.ts"
+    "${AOE_NOSTR_SOURCE_DIR}/src/napplet-entry.ts"
+    "${AOE_NOSTR_SOURCE_DIR}/src/napplet-event-author.ts"
     "${AOE_NOSTR_SOURCE_DIR}/src/protocol.ts"
     "${AOE_NOSTR_SOURCE_DIR}/src/runtime.ts"
+    "${AOE_NOSTR_SOURCE_DIR}/src/web-entry.ts"
 )
 add_custom_command(
-    OUTPUT "${AOE_NOSTR_BUNDLE}"
+    OUTPUT "${AOE_NOSTR_BUNDLE}" "${AOE_NAPPLET_NOSTR_BUNDLE}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory
         "${CMAKE_BINARY_DIR}/nostr"
     COMMAND "${AOE_NPM_EXECUTABLE}" ci --ignore-scripts
     COMMAND "${AOE_NPM_EXECUTABLE}" run typecheck
     COMMAND "${CMAKE_COMMAND}" -E env
         "AOE_NOSTR_BUNDLE=${AOE_NOSTR_BUNDLE}"
+        "AOE_NAPPLET_NOSTR_BUNDLE=${AOE_NAPPLET_NOSTR_BUNDLE}"
         "${AOE_NPM_EXECUTABLE}" run build
     WORKING_DIRECTORY "${AOE_NOSTR_SOURCE_DIR}"
     DEPENDS ${AOE_NOSTR_INPUTS}
     COMMENT "Building pinned Applesauce browser runtime"
     VERBATIM
 )
-add_custom_target(nostr_browser_bundle DEPENDS "${AOE_NOSTR_BUNDLE}")
+add_custom_target(nostr_browser_bundle DEPENDS
+    "${AOE_NOSTR_BUNDLE}" "${AOE_NAPPLET_NOSTR_BUNDLE}")
 
 set(AOE_WEB_CORE_SOURCES ${AOE_CORE_SOURCES})
 list(REMOVE_ITEM AOE_WEB_CORE_SOURCES
@@ -171,13 +180,13 @@ if(AOE_BUILD_NAPPLET)
             prepare-shell
             --template "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
             --styles "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
-            --nostr "${AOE_NOSTR_BUNDLE}"
+            --nostr "${AOE_NAPPLET_NOSTR_BUNDLE}"
             --output "${AOE_NAPPLET_SHELL}"
         DEPENDS
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_napplet_package.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
             "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
-            "${AOE_NOSTR_BUNDLE}"
+            "${AOE_NAPPLET_NOSTR_BUNDLE}"
         VERBATIM
     )
     add_custom_target(napplet_shell DEPENDS "${AOE_NAPPLET_SHELL}")
