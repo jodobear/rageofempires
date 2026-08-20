@@ -92,6 +92,20 @@ class NappletPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "forbidden authority"):
                     MODULE.verify_package(html, manifest)
 
+    def test_verify_rejects_app_owned_relay_markers(self) -> None:
+        for marker in MODULE.FORBIDDEN_RELAY_MARKERS:
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                html = root / "index.html"
+                manifest = root / ".nip5a-manifest.json"
+                html.write_text(
+                    f"<!doctype html><script>{marker}</script>",
+                    encoding="utf-8",
+                )
+                MODULE.write_manifest(html, manifest)
+                with self.assertRaisesRegex(ValueError, "forbidden app relay"):
+                    MODULE.verify_package(html, manifest)
+
     def test_verify_rejects_bad_aggregate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

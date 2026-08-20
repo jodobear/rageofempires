@@ -1,5 +1,6 @@
 import {AoeNostrClient, BridgeChannel} from "./runtime.js";
 import type {EventAuthorFactory} from "./event-author.js";
+import type {RelayTransportFactory} from "./relay-transport.js";
 import {sameRelayPool} from "./protocol.js";
 import type {EventIntent, LaunchConfig} from "./protocol.js";
 
@@ -68,12 +69,13 @@ function emit(channel: BridgeChannel, json: string): void {
 
 export function installAoeNostrRuntime(
   makeAuthor: EventAuthorFactory,
+  makeTransport: RelayTransportFactory,
 ): AoeNostrFacade {
   let client: AoeNostrClient | undefined;
   const facade: AoeNostrFacade = {
     async initialize(config: LaunchConfig): Promise<void> {
       client?.shutdown();
-      client = new AoeNostrClient(emit, makeAuthor);
+      client = new AoeNostrClient(emit, makeAuthor, makeTransport);
       if (globalThis.Module) {
         globalThis.Module.browserNostrShutdownDiagnostics = null;
         globalThis.Module.browserNostrDiagnostics = () => ({

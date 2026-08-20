@@ -1,20 +1,14 @@
 import type {NostrEvent} from "applesauce-core/helpers/event";
 
 import type {EventAuthor} from "./event-author.js";
+import type {NappletIdentityCapability} from "./napplet-api.js";
 import type {EventIntent} from "./protocol.js";
 import {validHex64} from "./protocol.js";
 
-type IdentityCapability = {
-  getPublicKey(): Promise<unknown>;
-};
-
-declare global {
-  var napplet: {identity?: IdentityCapability} | undefined;
-}
-
 export class NappletEventAuthor implements EventAuthor {
   constructor(
-    private readonly identity = globalThis.napplet?.identity,
+    private readonly identity: NappletIdentityCapability | undefined =
+      globalThis.napplet?.identity,
   ) {}
 
   async getPublicKey(): Promise<string> {
