@@ -11,6 +11,7 @@ option(
     ${AOE_BUILD_SDL3_DEFAULT}
 )
 option(AOE_BUILD_WEB "Build browser WebAssembly risk spike" OFF)
+option(AOE_BUILD_NAPPLET "Build the NIP-5D napplet WebAssembly target" OFF)
 
 if(
     APPLE
@@ -1509,6 +1510,6 @@ set_tests_properties(
     PROPERTIES ENVIRONMENT "AOE_DISABLE_LEGACY_ASSETS=0"
 )
 
-if(EMSCRIPTEN AND AOE_BUILD_WEB)
+if(EMSCRIPTEN AND (AOE_BUILD_WEB OR AOE_BUILD_NAPPLET))
     include(cmake/BrowserBuild.cmake)
 endif()

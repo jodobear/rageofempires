@@ -6,6 +6,20 @@ fog, two bases, villagers, livestock, military production, and terminal
 victory/defeat objectives. Browser support is disabled unless both Emscripten and
 `AOE_BUILD_WEB=ON` are selected.
 
+The napplet line has a separate opt-in target. It currently preserves the
+browser application's behavior while isolating its entry point, compile
+definitions, and output directory for later NIP-5D packaging and shell-API
+work:
+
+```sh
+make napplet-build
+```
+
+That command produces `build-napplet/napplet-dist/aoe_napplet.html`. It does
+not change `aoe_web`, the native executable, or the macOS application bundle.
+The single-file NIP-5D artifact and napplet shell adapters are later slices;
+this target is only their build boundary.
+
 The original fixed risk-spike fixture remains available for automated
 acceptance at `aoe_web.html?scenario=risk-spike`.
 
