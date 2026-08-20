@@ -25,7 +25,10 @@ EM_JS(bool, browser_nostr_visual_fixture_requested, (), {
 });
 
 EM_JS(char*, browser_query_parameter, (const char* name), {
-    const value = new URLSearchParams(window.location.search).get(
+    const search = typeof Module['browserLaunchSearch'] === 'string'
+        ? Module['browserLaunchSearch']
+        : window.location.search;
+    const value = new URLSearchParams(search).get(
         UTF8ToString(name)
     );
     return value === null ? 0 : stringToNewUTF8(value);

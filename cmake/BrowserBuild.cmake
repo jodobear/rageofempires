@@ -95,7 +95,7 @@ function(
         "${target}" "${CMAKE_CURRENT_SOURCE_DIR}/${entrypoint}"
     )
     target_link_libraries("${target}" PRIVATE aoe_browser_app)
-    add_dependencies("${target}" web_asset_pack nostr_browser_bundle)
+    add_dependencies("${target}" web_asset_pack)
     target_compile_options("${target}" PRIVATE
         -Wall
         -Wextra
@@ -131,6 +131,7 @@ if(AOE_BUILD_WEB)
         aoe_web src/web_main.cpp aoe_web "${AOE_WEB_DIST_DIR}"
         "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
     )
+    add_dependencies(aoe_web nostr_browser_bundle)
     target_compile_definitions(aoe_web PRIVATE AOE_WEB_BUILD=1)
     target_link_options(aoe_web PRIVATE
         "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/resources@/resources"
@@ -173,10 +174,10 @@ if(AOE_BUILD_NAPPLET)
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_napplet_package.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
             "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
+            "${AOE_NOSTR_BUNDLE}"
         VERBATIM
     )
     add_custom_target(napplet_shell DEPENDS "${AOE_NAPPLET_SHELL}")
-    add_dependencies(napplet_shell nostr_browser_bundle)
     aoe_add_browser_executable(
         aoe_napplet src/napplet_main.cpp index
         "${AOE_NAPPLET_DIST_DIR}" "${AOE_NAPPLET_SHELL}"

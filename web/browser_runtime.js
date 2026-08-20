@@ -372,6 +372,7 @@ document.getElementById('start').addEventListener('pointerup', function () {
       query.set('allied', '1');
     }
   }
+  Module['browserLaunchSearch'] = query.toString();
   if (!Module['nappletBuild']) {
     history.replaceState(null, '', location.pathname +
       (query.toString() ? '?' + query.toString() : ''));
