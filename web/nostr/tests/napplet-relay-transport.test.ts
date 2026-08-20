@@ -132,15 +132,17 @@ test("napplet receive fails closed on incomplete or unattributed results", async
     {
       type: "outbox.query.result",
       id: "query-2",
-      events: [],
+      events: [{event, sidecar: {relayHints: [relay]}}],
       incomplete: true,
     },
   ];
+  let subscriptions = 0;
   const outbox: NappletOutboxCapability = {
     async query() {
       return results.shift();
     },
     subscribe() {
+      subscriptions += 1;
       return new MockSubscription();
     },
   };
@@ -156,6 +158,28 @@ test("napplet receive fails closed on incomplete or unattributed results", async
   assert.deepEqual(second.map((message) => message.type), ["OPEN", "ERROR"]);
   assert.equal(first.some((message) => message.type === "EOSE"), false);
   assert.equal(second.some((message) => message.type === "EOSE"), false);
+  assert.equal(subscriptions, 0);
+});
+
+test("napplet receive quarantines a live stream after invalid attribution", async () => {
+  const live = new MockSubscription();
+  const outbox: NappletOutboxCapability = {
+    async query() {
+      return {type: "outbox.query.result", id: "query-1", events: []};
+    },
+    subscribe() { return live; },
+  };
+  const transport = new NappletRelayTransport(outbox);
+  const messages: RelayMessage[] = [];
+  transport.subscribe(relay, [{kinds: [78]}],
+    (message) => messages.push(message), () => {});
+  await tick();
+
+  live.emit("event", {event, sidecar: {relayHints: ["wss://other.example/"]}});
+  assert.equal(live.closed, true);
+  live.emit("event", {event, sidecar: {relayHints: [relay]}});
+  assert.deepEqual(messages.map((message) => message.type),
+    ["OPEN", "EOSE", "ERROR"]);
 });
 
 test("local filter enforcement restores authors removed from shell routing", () => {

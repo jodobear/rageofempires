@@ -199,7 +199,7 @@ export class NappletRelayTransport implements RelayTransport {
       try {
         live = outbox.subscribe(wireFilters, options);
         listeners.push(live.on("event", (value) => {
-          if (active && !this.closed) deliver(value);
+          if (active && !this.closed && !deliver(value)) unsubscribe();
         }));
         listeners.push(live.on("closed", (reason) => {
           if (!active || this.closed) return;
@@ -217,29 +217,29 @@ export class NappletRelayTransport implements RelayTransport {
     void outbox.query(wireFilters, options).then((value) => {
       if (!active || this.closed) return;
       const result = parseQueryResult(value);
-      const valid = result.events.every(deliver);
-      if (!valid || result.incomplete || result.error) {
-        if (!valid) return;
+      if (result.incomplete || result.error) {
         const cause = new Error(result.error ?? "napplet outbox query incomplete");
         this.updateStatus(relay, false);
         next({type: "ERROR", from: relay, error: cause});
         error(cause);
         return;
       }
+      if (!result.events.every(deliver)) return;
       this.updateStatus(relay, true);
       next({type: "EOSE", from: relay});
+      openLive();
     }).catch((cause: unknown) => {
       if (!active || this.closed) return;
       this.updateStatus(relay, false);
       next({type: "ERROR", from: relay, error: cause});
       error(cause);
-    }).finally(openLive);
+    });
 
     const unsubscribe = (): void => {
-      if (!active) return;
       active = false;
       for (const listener of listeners.splice(0)) listener.close();
       live?.close();
+      live = undefined;
       this.closeSubscriptions.delete(unsubscribe);
     };
     this.closeSubscriptions.add(unsubscribe);
