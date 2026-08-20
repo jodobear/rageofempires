@@ -18225,8 +18225,15 @@ ApplicationLoop SdlApp::loop() {
     };
     double gameplay_benchmark_command_ms{};
     std::size_t gameplay_benchmark_commanded_units{};
+    const char* multiplayer_launch = SDL_getenv("AOE_MULTIPLAYER");
+    const bool new_multiplayer_match =
+        multiplayer_launch != nullptr &&
+        (std::string_view{multiplayer_launch} == "host" ||
+         std::string_view{multiplayer_launch} == "join");
     const std::optional<std::filesystem::path> startup_autosave =
-        startup_autosave_path();
+        new_multiplayer_match
+        ? std::nullopt
+        : startup_autosave_path();
     Simulation simulation =
         startup_autosave && std::filesystem::is_regular_file(*startup_autosave)
         ? load_presentable_game(*startup_autosave)
@@ -19128,6 +19135,7 @@ ApplicationLoop SdlApp::loop() {
             multiplayer_checkpoint_save.string();
     }
     bool running = true;
+    std::string_view shutdown_reason{"loop-ended-without-reason"};
     if (const char* proof = SDL_getenv("AOE_MENU_ACTIVATION_PROOF");
         proof != nullptr && proof[0] != '\0') {
         SDL_Event activation{};
@@ -19826,6 +19834,7 @@ ApplicationLoop SdlApp::loop() {
                 active_frontend_screen = FrontendScreen::zone_service;
                 return;
             case FrontendMenuCommand::exit_game:
+                shutdown_reason = "frontend-exit";
                 running = false;
                 return;
             case FrontendMenuCommand::open_campaigns:
@@ -20091,6 +20100,7 @@ ApplicationLoop SdlApp::loop() {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
+                shutdown_reason = "sdl-quit-event";
                 running = false;
                 continue;
             }
@@ -22235,6 +22245,7 @@ ApplicationLoop SdlApp::loop() {
                                event.key.key == SDLK_R) {
                         if (postgame_restart_reinitializes_application()) {
                             request_application_restart();
+                            shutdown_reason = "postgame-restart";
                             running = false;
                         } else {
                             simulation = new_game();
@@ -22809,6 +22820,7 @@ ApplicationLoop SdlApp::loop() {
                         active_frontend_screen =
                             FrontendScreen::hidden;
                     } else if (event.key.key == SDLK_ESCAPE) {
+                        shutdown_reason = "frontend-escape";
                         running = false;
                     }
                     continue;
@@ -23077,6 +23089,7 @@ ApplicationLoop SdlApp::loop() {
                     } else if (event.key.key == SDLK_ESCAPE) {
                         if (campaign_presentation->screen ==
                             CampaignPresentation::Screen::briefing) {
+                            shutdown_reason = "campaign-escape";
                             running = false;
                         } else {
                             campaign_presentation->screen =
@@ -26096,6 +26109,7 @@ ApplicationLoop SdlApp::loop() {
                         "could not write gameplay benchmark report"
                     );
                 }
+                shutdown_reason = "benchmark-complete";
                 running = false;
             }
         }
@@ -26306,6 +26320,10 @@ ApplicationLoop SdlApp::loop() {
         co_yield !gameplay_benchmark;
     }
 
+    if (stop_requested_) {
+        shutdown_reason = "application-shutdown-requested";
+    }
+    publish_browser_shutdown_diagnostics(shutdown_reason);
     if (multiplayer_runtime) {
         multiplayer_runtime->disconnect();
     }
