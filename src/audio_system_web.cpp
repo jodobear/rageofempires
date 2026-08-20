@@ -23,7 +23,11 @@ EM_JS(bool, browser_audio_start, (), {
     };
     const telemetry = Module.browserAudioTelemetry;
     const state = {
-      music: new Audio('game_data/Sound/music/xmusic1.mp3'),
+      music: new Audio(
+        Module['nappletAssetUrl']
+          ? Module['nappletAssetUrl']('game_data/Sound/music/xmusic1.mp3')
+          : 'game_data/Sound/music/xmusic1.mp3'
+      ),
       effects: new Set(),
       muted: false,
       paused: false,
@@ -128,7 +132,12 @@ EM_JS(void, browser_audio_play_effect,
       (const char* source, float gain, float pan), {
     const state = Module.audioState;
     if (!state || state.muted || state.paused) return;
-    const effect = new Audio(UTF8ToString(source));
+    const sourcePath = UTF8ToString(source);
+    const effect = new Audio(
+      Module['nappletAssetUrl']
+        ? Module['nappletAssetUrl'](sourcePath)
+        : sourcePath
+    );
     effect.preload = 'auto';
     effect.volume = Math.max(0, Math.min(1, gain));
     effect.muted = state.muted;

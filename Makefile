@@ -72,7 +72,8 @@ napplet-build:
 			-DAOE_BUILD_SDL3=ON \
 			-DAOE_ENABLE_MPG123=OFF && \
 		$(CMAKE) --build build-napplet --target aoe_napplet \
-			--parallel "$(JOBS)"
+			--parallel "$(JOBS)" && \
+		$(PYTHON) tools/test_build_napplet_package.py
 
 web: web-build
 	$(PYTHON) -m http.server "$(WEB_PORT)" \

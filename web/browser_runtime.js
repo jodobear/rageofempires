@@ -120,7 +120,6 @@ Module['canvas'].addEventListener('contextmenu', function (event) {
 });
 Module['preRun'] ??= [];
 Module['preRun'].push(function () {
-  Module['addRunDependency']('browser-storage');
   const ensureDirectory = function (path) {
     const existing = FS.analyzePath(path);
     if (!existing.exists) {
@@ -132,6 +131,14 @@ Module['preRun'].push(function () {
     }
   };
   ensureDirectory('/user');
+  if (Module['nappletBuild']) {
+    for (const path of ['/user/settings', '/user/autosave']) {
+      ensureDirectory(path);
+    }
+    Module['storageReady'] = true;
+    return;
+  }
+  Module['addRunDependency']('browser-storage');
   FS.mount(IDBFS, {}, '/user');
   FS.syncfs(true, function (error) {
     if (error) {
@@ -365,8 +372,10 @@ document.getElementById('start').addEventListener('pointerup', function () {
       query.set('allied', '1');
     }
   }
-  history.replaceState(null, '', location.pathname +
-    (query.toString() ? '?' + query.toString() : ''));
+  if (!Module['nappletBuild']) {
+    history.replaceState(null, '', location.pathname +
+      (query.toString() ? '?' + query.toString() : ''));
+  }
   this.hidden = true;
   document.getElementById('launch').hidden = true;
   Module['canvas'].hidden = false;

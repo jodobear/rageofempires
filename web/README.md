@@ -15,10 +15,15 @@ work:
 make napplet-build
 ```
 
-That command produces `build-napplet/napplet-dist/aoe_napplet.html`. It does
-not change `aoe_web`, the native executable, or the macOS application bundle.
-The single-file NIP-5D artifact and napplet shell adapters are later slices;
-this target is only their build boundary.
+That command produces one self-contained runtime artifact at
+`build-napplet/napplet-dist/index.html` plus an unsigned
+`.nip5a-manifest.json` template. The kind-35129 manifest hashes the exact HTML
+and declares the `identity`, `outbox`, and `storage` NAP capabilities. Signing
+and publishing the manifest remain deployment responsibilities.
+
+The napplet build embeds its WebAssembly, JavaScript, CSS, fixed game assets,
+music, and effects. It does not change `aoe_web`, the native executable, or
+the macOS application bundle. Napplet shell adapters are later slices.
 
 The original fixed risk-spike fixture remains available for automated
 acceptance at `aoe_web.html?scenario=risk-spike`.
