@@ -39,9 +39,10 @@ configured relay has a visible `Disconnect` or `Restore` button.
 - Restore opens a fresh stored-event subscription. Play remains blocked until
   required relay quorum is connected, ready, and has reached EOSE.
 - A signed turn that failed publication quorum remains cached by event ID.
-  After restored-relay EOSE, runtime republishes exact signed bytes and remains
-  in `backfill_incomplete` until republication reaches quorum. It never creates
-  replacement input.
+  After restored-relay EOSE, runtime republishes the same verified event
+  identity and remains in `backfill_incomplete` until republication reaches
+  quorum. All ID-producing fields and the event ID remain identical; a valid
+  replacement signature is allowed. Runtime never creates replacement input.
 - EventStore and sender-sequence checks make multi-relay duplicates
   idempotent. Conflicting logical input still suspends session.
 
