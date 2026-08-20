@@ -397,6 +397,17 @@ document.getElementById('launch-mode').addEventListener('change', function () {
     ? 'Browse waiting sessions' : 'Start';
 });
 
+document.getElementById('one-relay').addEventListener('change', function () {
+  const canonicalRelays = Module['canonicalNostrRelays'];
+  if (!Array.isArray(canonicalRelays) || canonicalRelays.length === 0) return;
+  document.getElementById('relays').value = this.checked
+    ? canonicalRelays[0]
+    : canonicalRelays.join(',');
+  document.getElementById('relay-quorum-note').textContent = this.checked
+    ? 'Development match pauses when its configured relay is unavailable.'
+    : 'Match pauses when fewer than two configured relays remain.';
+});
+
 document.getElementById('fullscreen').addEventListener(
   'pointerup',
   async function () {

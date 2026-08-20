@@ -29,7 +29,8 @@
         <textarea id="match-reference" rows="3" cols="72"></textarea>
       </label>
       <label id="one-relay-field" hidden>
-        <input id="one-relay" type="checkbox"> One-relay development mode
+        <input id="one-relay" type="checkbox">
+        One-relay development mode (first packaged relay)
       </label>
       <label id="allied-field" hidden>
         <input id="allied" type="checkbox"> Allied players
@@ -57,7 +58,9 @@
         <span id="copy-match-status"></span>
         <details id="relay-management">
           <summary>Manage relay connections</summary>
-          <p>Match pauses when fewer than two configured relays remain.</p>
+          <p id="relay-quorum-note">
+            Match pauses when fewer than two configured relays remain.
+          </p>
           <div id="relay-controls"></div>
         </details>
       </div>

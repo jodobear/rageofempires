@@ -1,7 +1,7 @@
-import {AoeNostrClient, BridgeChannel} from "./runtime.js";
+import {AoeNostrClient, BridgeChannel, relayPoolDigest} from "./runtime.js";
 import type {EventAuthorFactory} from "./event-author.js";
 import type {RelayTransportFactory} from "./relay-transport.js";
-import {sameRelayPool} from "./protocol.js";
+import {sameRelayPool, validateRelays} from "./protocol.js";
 import type {EventIntent, LaunchConfig} from "./protocol.js";
 
 type EmscriptenModule = {
@@ -52,6 +52,24 @@ export function makeShutdownDiagnostics(
   };
 }
 
+export function packagedRelaySelection(
+  config: LaunchConfig,
+  canonicalRelays: string[],
+): string[] {
+  const configuredRelays = validateRelays(
+    config.relays,
+    config.one_relay_development,
+  );
+  if (sameRelayPool(configuredRelays, canonicalRelays)) {
+    return configuredRelays;
+  }
+  if (config.one_relay_development && configuredRelays.length === 1 &&
+      canonicalRelays.includes(configuredRelays[0])) {
+    return configuredRelays;
+  }
+  throw new Error("runtime relay pool differs from packaged production");
+}
+
 function emit(channel: BridgeChannel, json: string): void {
   const module = globalThis.Module;
   if (!module) throw new Error("Emscripten module is not initialized");
@@ -86,13 +104,14 @@ export function installAoeNostrRuntime(
       }
       try {
         const canonicalRelays = globalThis.Module?.canonicalNostrRelays;
-        if (!canonicalRelays || !sameRelayPool(config.relays, canonicalRelays)) {
+        if (!canonicalRelays) {
           throw new Error("runtime relay pool differs from packaged production");
         }
+        const selectedRelays = packagedRelaySelection(config, canonicalRelays);
         await client.initialize(config);
         const diagnostics = client.diagnostics();
-        if (diagnostics.relayPoolDigest !==
-            globalThis.Module?.canonicalNostrRelayDigest) {
+        const expectedRelayDigest = await relayPoolDigest(selectedRelays);
+        if (diagnostics.relayPoolDigest !== expectedRelayDigest) {
           throw new Error("runtime relay digest differs from packaged production");
         }
       } catch (error) {

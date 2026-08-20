@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-08-21",
+  "artifact": {
+    "path": "build-napplet/napplet-dist/index.html",
+    "bytes": 82953182,
+    "sha256": "9298c3cc23462e37b01d362489849b33101662bc113a49b55a3d3d41aee75f1b"
+  },
+  "runtime": "Kehto Paja local production build",
+  "relay": "wss://nos.lol/",
+  "match_id": "7a3de3540efb710808d1b4ef3ed3ab8647b81db4ca5d647f5df95f838e0484ad",
+  "host": {
+    "public_key": "ab0501895c6e55b4c87429579664df6455c75608b93f9ded97c212a2e324ee1f",
+    "ready": true,
+    "start_requested": true,
+    "start_sent": true,
+    "tick": 7,
+    "state_hash": "save131+ids-fnv1a64:eeae939d0a971e81",
+    "reliability_status": 2,
+    "reliability_reason": 6
+  },
+  "join": {
+    "public_key": "2c89d30e472288fa7f5817c67b0d1c623615336f84fa59a0c41564683b19873b",
+    "ready": true,
+    "tick": 7,
+    "state_hash": "save131+ids-fnv1a64:eeae939d0a971e81",
+    "reliability_status": 2,
+    "reliability_reason": 6
+  },
+  "audio": {
+    "host": {"starts": 1, "music_play_attempts": 2, "live_music_instances": 1, "errors": []},
+    "join": {"starts": 1, "music_play_attempts": 2, "live_music_instances": 1, "errors": []},
+    "audible_output_human_verified": false
+  },
+  "failure": {
+    "message": "sender previous-event chain mismatch",
+    "host_sequence_1": "6b8ee8c220a9282cecf71b996aa85179409421f1bbef6760bf0a1b0fad9269f0",
+    "host_sequence_2": "15c31a5f2e9535973ab71471759edcec55f62954219970e8b53981bbe3cec230",
+    "host_sequence_3": "d8296cb3002bf9b7812378fdf622e0260f64b974a127b27b62865f799b405cb5",
+    "host_sequence_2_previous": "6b8ee8c220a9282cecf71b996aa85179409421f1bbef6760bf0a1b0fad9269f0",
+    "host_sequence_3_previous": "6b8ee8c220a9282cecf71b996aa85179409421f1bbef6760bf0a1b0fad9269f0"
+  },
+  "verdict": "start passes; sustained play blocked by per-event consent timeout and late stale publication"
+}
