@@ -7,7 +7,7 @@ Status: PASS
 - Rage source head: `3d8f16cd32f754534e40663aac47588fb65366a6`
 - Kehto source head: `1b5c06c8e451850c07c6cede403ae846e804ee70`
 - Report: `docs/audits/2026-08-20-KEHTO-PAJA-NAPPLET.md`
-- Durable local artifacts: `artifacts/kehto-paja-napplet-3d8f16c/`
+- Durable tracked artifacts: `docs/evidence/kehto-paja-napplet-3d8f16c/`
 
 The acceptance run began only after these paths existed.
 
@@ -41,10 +41,10 @@ Single player reached live gameplay rather than a mock or menu-only path:
 - Browser telemetry contained no uncaught errors and no reported failures.
 
 The screenshot is
-`artifacts/kehto-paja-napplet-3d8f16c/paja-gameplay.png` with SHA-256
+`docs/evidence/kehto-paja-napplet-3d8f16c/paja-gameplay.png` with SHA-256
 `007a8c527f399a3d2aff27720c694049ee54c6819b6c408f44c78f026a75c4c6`.
 Structured evidence is
-`artifacts/kehto-paja-napplet-3d8f16c/runtime-acceptance.json`.
+`docs/evidence/kehto-paja-napplet-3d8f16c/runtime-acceptance.json`.
 
 ## Findings
 
