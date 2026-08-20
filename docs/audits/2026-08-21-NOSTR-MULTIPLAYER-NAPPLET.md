@@ -9,8 +9,8 @@ join, acknowledgement, ready, host start, initial lockstep turns, deterministic
 state agreement, and browser audio telemetry.
 
 Evidence is under
-`artifacts/nostr-multiplayer/20260821-napplet-single-relay/`. The tested artifact
-was `build-napplet/napplet-dist/index.html`, 82,953,182 bytes, SHA-256
+`docs/audits/evidence/2026-08-21-napplet-single-relay/`. The tested artifact was
+`build-napplet/napplet-dist/index.html`, 82,953,182 bytes, SHA-256
 `9298c3cc23462e37b01d362489849b33101662bc113a49b55a3d3d41aee75f1b`.
 
 ## Result
@@ -26,7 +26,9 @@ gameplay did not pass.
 - The one-relay checkbox now selects the first packaged canonical relay,
   `wss://nos.lol/`. The bridge accepts that one packaged relay only when the
   explicit development flag is present. Arbitrary relay injection remains
-  rejected. Normal packaged-pool behavior is unchanged.
+  rejected. Its displayed pause rule says the single configured relay must
+  remain available. Normal packaged-pool behavior and its quorum-two message
+  are unchanged.
 - Host and join discovered the same match and roster. Each observed both
   acknowledgement and ready events with one usable relay and one completed
   backfill.

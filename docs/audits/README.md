@@ -10,3 +10,4 @@ them to rank or implement work.
 - [2026-08-11: browser multiplayer gameplay](2026-08-11-BROWSER-MULTIPLAYER-GAMEPLAY-AUDIT.md)
 - [2026-08-11: automated visual-audit policy addendum](2026-08-11-AUTOMATED-VISUAL-AUDIT-POLICY.md)
 - [2026-08-20: Kehto/Paja napplet acceptance](2026-08-20-KEHTO-PAJA-NAPPLET.md)
+- [2026-08-21: Nostr multiplayer napplet acceptance](2026-08-21-NOSTR-MULTIPLAYER-NAPPLET.md)
