@@ -570,6 +570,15 @@ export class AoeNostrClient {
     const intent = validateIntent(untrusted);
     try {
       if (!this.author) throw new Error("event author is not initialized");
+      if (this.author.publishThroughShell) {
+        const active = this.relays.filter((relay) => !this.disabledRelays.has(relay));
+        const publication = await this.author.publishThroughShell(intent, active);
+        if (intent.cache) {
+          this.signedEvents.set(publication.event.id, publication.event);
+        }
+        this.publishResult(intent.intent_id, publication.event, publication.results);
+        return;
+      }
       const event = await this.author.createEvent(intent);
       if (intent.cache) this.signedEvents.set(event.id, event);
       const active = readyPublishRelays(
@@ -622,6 +631,23 @@ export class AoeNostrClient {
     const event = this.signedEvents.get(eventId);
     if (!event) {
       this.status("republish_unavailable", {event_id: eventId});
+      return;
+    }
+    if (this.author?.republishThroughShell) {
+      try {
+        const active = this.relays.filter((relay) => !this.disabledRelays.has(relay));
+        const publication = await this.author.republishThroughShell(event, active);
+        this.publishResult(`republish:${eventId}`, publication.event,
+          publication.results);
+      } catch (error) {
+        this.emit("publish", JSON.stringify({
+          intent_id: `republish:${eventId}`,
+          event_id: eventId,
+          ok: false,
+          message: String(error),
+          results: [],
+        }));
+      }
       return;
     }
     const active = readyPublishRelays(

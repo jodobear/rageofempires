@@ -80,6 +80,9 @@ test("napplet receive queries one explicit relay before opening live delivery", 
       subscriptions.push({filters, options, handle});
       return handle;
     },
+    async publish() {
+      throw new Error("unexpected publish");
+    },
   };
   const transport = new NappletRelayTransport(outbox);
   const messages: RelayMessage[] = [];
@@ -152,6 +155,9 @@ test("napplet receive fails closed on incomplete or unattributed results", async
       subscriptions += 1;
       return new MockSubscription();
     },
+    async publish() {
+      throw new Error("unexpected publish");
+    },
   };
   const transport = new NappletRelayTransport(outbox);
   const first: RelayMessage[] = [];
@@ -180,6 +186,7 @@ test("napplet receive quarantines a live stream after invalid attribution", asyn
       return {type: "outbox.query.result", id: "query-1", events: []};
     },
     subscribe() { return live; },
+    async publish() { throw new Error("unexpected publish"); },
   };
   const transport = new NappletRelayTransport(outbox);
   const messages: RelayMessage[] = [];

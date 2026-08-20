@@ -1,12 +1,13 @@
 import {verifyEvent} from "applesauce-core/helpers/event";
 import type {NostrEvent} from "applesauce-core/helpers/event";
 
-import type {
-  NappletOutboxCapability,
-  NappletOutboxListener,
-  NappletOutboxSubscription,
+import {
+  isNostrEvent,
+  type NappletOutboxCapability,
+  type NappletOutboxListener,
+  type NappletOutboxSubscription,
 } from "./napplet-api.js";
-import {validateRelay, validHex64} from "./protocol.js";
+import {validateRelay} from "./protocol.js";
 import type {
   NostrFilter,
   PublishResponse,
@@ -31,19 +32,6 @@ type QueryResult = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function isNostrEvent(value: unknown): value is NostrEvent {
-  if (!isRecord(value) || typeof value.id !== "string" ||
-      typeof value.pubkey !== "string" || typeof value.sig !== "string" ||
-      typeof value.content !== "string" || !Number.isSafeInteger(value.kind) ||
-      !Number.isSafeInteger(value.created_at) || !validHex64(value.id) ||
-      !validHex64(value.pubkey) || !/^[0-9a-f]{128}$/.test(value.sig)) {
-    return false;
-  }
-  return Array.isArray(value.tags) && value.tags.every((tag) =>
-    Array.isArray(tag) && tag.every((part) => typeof part === "string")
-  );
 }
 
 function parseRelayEventResult(value: unknown): RelayEventResult {
