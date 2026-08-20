@@ -1,3 +1,4 @@
+import {verifyEvent} from "applesauce-core/helpers/event";
 import type {NostrEvent} from "applesauce-core/helpers/event";
 
 import type {
@@ -177,14 +178,26 @@ export class NappletRelayTransport implements RelayTransport {
     let live: NappletOutboxSubscription | undefined;
     const listeners: NappletOutboxListener[] = [];
 
+    const validateObserved = (result: RelayEventResult): void => {
+      if (!resultObservedOn(result, relay)) {
+        throw new Error(`napplet outbox event lacks requested relay hint: ${relay}`);
+      }
+      if (!verifyEvent(result.event)) {
+        throw new Error("napplet outbox returned an invalid event signature");
+      }
+    };
+
+    const forward = (result: RelayEventResult): void => {
+      if (eventMatchesFilters(result.event, filters)) {
+        next({type: "EVENT", from: relay, event: result.event});
+      }
+    };
+
     const deliver = (value: unknown): boolean => {
       try {
         const result = parseRelayEventResult(value);
-        if (!resultObservedOn(result, relay)) {
-          throw new Error(`napplet outbox event lacks requested relay hint: ${relay}`);
-        }
-        if (!eventMatchesFilters(result.event, filters)) return true;
-        next({type: "EVENT", from: relay, event: result.event});
+        validateObserved(result);
+        forward(result);
         return true;
       } catch (cause) {
         this.updateStatus(relay, false);
@@ -224,7 +237,8 @@ export class NappletRelayTransport implements RelayTransport {
         error(cause);
         return;
       }
-      if (!result.events.every(deliver)) return;
+      for (const eventResult of result.events) validateObserved(eventResult);
+      for (const eventResult of result.events) forward(eventResult);
       this.updateStatus(relay, true);
       next({type: "EOSE", from: relay});
       openLive();

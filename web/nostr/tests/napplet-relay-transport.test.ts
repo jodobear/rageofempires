@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type {NostrEvent} from "applesauce-core/helpers/event";
 
+import {BrowserEventAuthor} from "../src/browser-event-author.js";
 import type {
   NappletOutboxCapability,
   NappletOutboxSubscription,
@@ -14,16 +15,14 @@ import {
 import type {RelayMessage, RelayStatus} from "../src/relay-transport.js";
 
 const relay = "wss://one.example/";
-const host = "a".repeat(64);
-const event: NostrEvent = {
-  id: "b".repeat(64),
-  pubkey: host,
+const eventAuthor = new BrowserEventAuthor();
+const host = await eventAuthor.getPublicKey();
+const event: NostrEvent = await eventAuthor.createEvent({
+  intent_id: "event-1",
   kind: 78,
-  created_at: 5000,
   tags: [["m", "match"]],
   content: "{}",
-  sig: "c".repeat(128),
-};
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -135,6 +134,14 @@ test("napplet receive fails closed on incomplete or unattributed results", async
       events: [{event, sidecar: {relayHints: [relay]}}],
       incomplete: true,
     },
+    {
+      type: "outbox.query.result",
+      id: "query-3",
+      events: [
+        {event, sidecar: {relayHints: [relay]}},
+        {event, sidecar: {relayHints: ["wss://extra.example/"]}},
+      ],
+    },
   ];
   let subscriptions = 0;
   const outbox: NappletOutboxCapability = {
@@ -149,15 +156,20 @@ test("napplet receive fails closed on incomplete or unattributed results", async
   const transport = new NappletRelayTransport(outbox);
   const first: RelayMessage[] = [];
   const second: RelayMessage[] = [];
+  const third: RelayMessage[] = [];
   transport.subscribe(relay, [{kinds: [78]}], (message) => first.push(message), () => {});
   await tick();
   transport.subscribe(relay, [{kinds: [78]}], (message) => second.push(message), () => {});
   await tick();
+  transport.subscribe(relay, [{kinds: [78]}], (message) => third.push(message), () => {});
+  await tick();
 
   assert.deepEqual(first.map((message) => message.type), ["OPEN", "ERROR"]);
   assert.deepEqual(second.map((message) => message.type), ["OPEN", "ERROR"]);
+  assert.deepEqual(third.map((message) => message.type), ["OPEN", "ERROR"]);
   assert.equal(first.some((message) => message.type === "EOSE"), false);
   assert.equal(second.some((message) => message.type === "EOSE"), false);
+  assert.equal(third.some((message) => message.type === "EVENT"), false);
   assert.equal(subscriptions, 0);
 });
 
@@ -184,11 +196,12 @@ test("napplet receive quarantines a live stream after invalid attribution", asyn
 
 test("local filter enforcement restores authors removed from shell routing", () => {
   assert.equal(eventMatchesFilters(event, [{
-    kinds: [78], authors: [host], "#m": ["match"], since: 4999,
+    kinds: [78], authors: [host], "#m": ["match"],
+    since: event.created_at - 1,
   }]), true);
   assert.equal(eventMatchesFilters(event, [{authors: ["d".repeat(64)]}]), false);
   assert.equal(eventMatchesFilters(event, [{"#m": ["other"]}]), false);
-  assert.equal(eventMatchesFilters(event, [{since: 5001}]), false);
+  assert.equal(eventMatchesFilters(event, [{since: event.created_at + 1}]), false);
 });
 
 test("napplet receive requires shell outbox", () => {
