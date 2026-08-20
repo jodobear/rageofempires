@@ -1,5 +1,8 @@
 set(AOE_WEB_DIST_DIR "${CMAKE_BINARY_DIR}/dist")
 set(AOE_NAPPLET_DIST_DIR "${CMAKE_BINARY_DIR}/napplet-dist")
+set(AOE_NAPPLET_SHELL "${CMAKE_BINARY_DIR}/napplet-shell.html")
+set(AOE_NAPPLET_MANIFEST
+    "${AOE_NAPPLET_DIST_DIR}/.nip5a-manifest.json")
 set(AOE_WEB_ASSET_DIR "${CMAKE_BINARY_DIR}/web-assets")
 set(AOE_BROWSER_TEST_PYTHON "python3" CACHE STRING
     "Host Python command with Selenium for browser acceptance")
@@ -84,12 +87,15 @@ target_compile_options(aoe_browser_app PRIVATE
     -fexceptions
 )
 
-function(aoe_add_browser_executable target entrypoint output_name dist_dir)
+function(
+    aoe_add_browser_executable
+    target entrypoint output_name dist_dir shell_file
+)
     add_executable(
         "${target}" "${CMAKE_CURRENT_SOURCE_DIR}/${entrypoint}"
     )
     target_link_libraries("${target}" PRIVATE aoe_browser_app)
-    add_dependencies("${target}" web_asset_pack nostr_browser_bundle)
+    add_dependencies("${target}" web_asset_pack)
     target_compile_options("${target}" PRIVATE
         -Wall
         -Wextra
@@ -108,54 +114,113 @@ function(aoe_add_browser_executable target entrypoint output_name dist_dir)
         "SHELL:-s INVOKE_RUN=0"
         "SHELL:-s EXPORTED_RUNTIME_METHODS=['callMain','HEAPU8']"
         "SHELL:-s EXPORTED_FUNCTIONS=['_main','_malloc','_free','_aoe_nostr_enqueue_event','_aoe_nostr_enqueue_status','_aoe_nostr_publish_result']"
-        "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
         "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/browser_runtime.js"
-        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/resources@/resources"
-        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Bin@/game_data/Bin"
-        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Data@/game_data/Data"
-        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Terrain@/game_data/Terrain"
+        "SHELL:--shell-file ${shell_file}"
     )
     set_target_properties("${target}" PROPERTIES
         OUTPUT_NAME "${output_name}"
         SUFFIX ".html"
         RUNTIME_OUTPUT_DIRECTORY "${dist_dir}"
         LINK_DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html;${CMAKE_CURRENT_SOURCE_DIR}/web/browser_runtime.js;${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css;${AOE_NOSTR_BUNDLE};${AOE_WEB_ASSET_DIR}/web_asset_manifest.json"
-    )
-    add_custom_command(TARGET "${target}" POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${dist_dir}/game_data/Sound/music"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "${dist_dir}/game_data/Sound/effects"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${AOE_WEB_ASSET_DIR}/game_data/Sound/music/xmusic1.mp3"
-            "${dist_dir}/game_data/Sound/music/xmusic1.mp3"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/game_data/Sound/effects"
-            "${dist_dir}/game_data/Sound/effects"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
-            "${dist_dir}/styles.css"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${AOE_NOSTR_BUNDLE}"
-            "${dist_dir}/aoe_nostr.js"
-        VERBATIM
+            "${shell_file};${CMAKE_CURRENT_SOURCE_DIR}/web/browser_runtime.js;${AOE_WEB_ASSET_DIR}/web_asset_manifest.json"
     )
 endfunction()
 
 if(AOE_BUILD_WEB)
     aoe_add_browser_executable(
         aoe_web src/web_main.cpp aoe_web "${AOE_WEB_DIST_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+    )
+    add_dependencies(aoe_web nostr_browser_bundle)
+    set_property(TARGET aoe_web APPEND PROPERTY LINK_DEPENDS
+        "${AOE_NOSTR_BUNDLE}"
     )
     target_compile_definitions(aoe_web PRIVATE AOE_WEB_BUILD=1)
+    target_link_options(aoe_web PRIVATE
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/resources@/resources"
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Bin@/game_data/Bin"
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Data@/game_data/Data"
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Terrain@/game_data/Terrain"
+    )
+    add_custom_command(TARGET aoe_web POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${AOE_WEB_DIST_DIR}/game_data/Sound/music"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${AOE_WEB_DIST_DIR}/game_data/Sound/effects"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${AOE_WEB_ASSET_DIR}/game_data/Sound/music/xmusic1.mp3"
+            "${AOE_WEB_DIST_DIR}/game_data/Sound/music/xmusic1.mp3"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/game_data/Sound/effects"
+            "${AOE_WEB_DIST_DIR}/game_data/Sound/effects"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
+            "${AOE_WEB_DIST_DIR}/styles.css"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${AOE_NOSTR_BUNDLE}"
+            "${AOE_WEB_DIST_DIR}/aoe_nostr.js"
+        VERBATIM
+    )
 endif()
 
 if(AOE_BUILD_NAPPLET)
-    aoe_add_browser_executable(
-        aoe_napplet src/napplet_main.cpp aoe_napplet
-        "${AOE_NAPPLET_DIST_DIR}"
+    add_custom_command(
+        OUTPUT "${AOE_NAPPLET_SHELL}"
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_napplet_package.py"
+            prepare-shell
+            --template "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+            --styles "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
+            --nostr "${AOE_NOSTR_BUNDLE}"
+            --output "${AOE_NAPPLET_SHELL}"
+        DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_napplet_package.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+            "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
+            "${AOE_NOSTR_BUNDLE}"
+        VERBATIM
     )
+    add_custom_target(napplet_shell DEPENDS "${AOE_NAPPLET_SHELL}")
+    aoe_add_browser_executable(
+        aoe_napplet src/napplet_main.cpp index
+        "${AOE_NAPPLET_DIST_DIR}" "${AOE_NAPPLET_SHELL}"
+    )
+    add_dependencies(aoe_napplet napplet_shell)
     target_compile_definitions(aoe_napplet PRIVATE AOE_NAPPLET_BUILD=1)
+    target_link_options(aoe_napplet PRIVATE
+        "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/napplet_runtime.js"
+        "SHELL:-s SINGLE_FILE=1"
+        "SHELL:--embed-file ${AOE_WEB_ASSET_DIR}/resources@/resources"
+        "SHELL:--embed-file ${AOE_WEB_ASSET_DIR}/game_data/Bin@/game_data/Bin"
+        "SHELL:--embed-file ${AOE_WEB_ASSET_DIR}/game_data/Data@/game_data/Data"
+        "SHELL:--embed-file ${AOE_WEB_ASSET_DIR}/game_data/Terrain@/game_data/Terrain"
+        "SHELL:--embed-file ${AOE_WEB_ASSET_DIR}/game_data/Sound/music/xmusic1.mp3@/game_data/Sound/music/xmusic1.mp3"
+        "SHELL:--embed-file ${CMAKE_CURRENT_SOURCE_DIR}/game_data/Sound/effects@/game_data/Sound/effects"
+    )
+    set_property(TARGET aoe_napplet APPEND PROPERTY LINK_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/web/napplet_runtime.js"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_napplet_package.py"
+    )
+    add_custom_command(TARGET aoe_napplet PRE_LINK
+        COMMAND "${CMAKE_COMMAND}" -E remove_directory
+            "${AOE_NAPPLET_DIST_DIR}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${AOE_NAPPLET_DIST_DIR}"
+        VERBATIM
+    )
+    add_custom_command(TARGET aoe_napplet POST_BUILD
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_napplet_package.py"
+            manifest
+            --html "${AOE_NAPPLET_DIST_DIR}/index.html"
+            --output "${AOE_NAPPLET_MANIFEST}"
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_napplet_package.py"
+            verify
+            --html "${AOE_NAPPLET_DIST_DIR}/index.html"
+            --manifest "${AOE_NAPPLET_MANIFEST}"
+        VERBATIM
+    )
 endif()
 
 if(AOE_BUILD_WEB)
