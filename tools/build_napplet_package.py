@@ -19,6 +19,10 @@ FORBIDDEN_AUTHORITY_MARKERS = (
     "window.nostr",
     "globalThis.nostr",
 )
+FORBIDDEN_RELAY_MARKERS = (
+    "applesauce-relay",
+    "WebSocket",
+)
 STYLESHEET_TAG = '<link rel="stylesheet" href="styles.css">'
 NOSTR_SCRIPT_TAG = '<script src="aoe_nostr.js"></script>'
 EXTERNAL_SUBRESOURCE = re.compile(
@@ -111,6 +115,11 @@ def verify_package(html_path: Path, manifest_path: Path) -> None:
         if marker in html:
             raise ValueError(
                 f"napplet contains forbidden authority marker: {marker}"
+            )
+    for marker in FORBIDDEN_RELAY_MARKERS:
+        if marker in html:
+            raise ValueError(
+                f"napplet contains forbidden app relay marker: {marker}"
             )
     package_files = sorted(
         path.name for path in html_path.parent.iterdir() if path.is_file()

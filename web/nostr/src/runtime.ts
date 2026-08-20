@@ -1,10 +1,15 @@
-import {EventStore} from "applesauce-core";
+import {verifyEvent} from "applesauce-core/helpers/event";
 import type {NostrEvent} from "applesauce-core/helpers/event";
-import {RelayPool} from "applesauce-relay";
-import type {GroupReqMessage, PublishResponse, RelayStatus} from "applesauce-relay/types";
-import type {Subscription} from "rxjs";
 
 import type {EventAuthor, EventAuthorFactory} from "./event-author.js";
+import type {
+  PublishResponse,
+  RelayMessage,
+  RelayStatus,
+  RelayTransport,
+  RelayTransportFactory,
+  TransportSubscription,
+} from "./relay-transport.js";
 
 import {
   applicationTags,
@@ -226,12 +231,12 @@ function boundedEventEnvelope(event: NostrEvent, relay: string): string {
 }
 
 export class AoeNostrClient {
-  private pool = new RelayPool();
-  private store = new EventStore();
+  private transport: RelayTransport | undefined;
+  private observedEvents = new Set<string>();
   private author: EventAuthor | undefined;
-  private subscriptions: Subscription[] = [];
-  private matchSubscriptions = new Map<string, Subscription>();
-  private discoverySubscriptions = new Map<string, Subscription>();
+  private subscriptions: TransportSubscription[] = [];
+  private matchSubscriptions = new Map<string, TransportSubscription>();
+  private discoverySubscriptions = new Map<string, TransportSubscription>();
   private signedEvents = new Map<string, NostrEvent>();
   private disabledRelays = new Set<string>();
   private eoseRelays = new Set<string>();
@@ -256,12 +261,13 @@ export class AoeNostrClient {
   constructor(
     private readonly emit: BridgeEmitter,
     private readonly makeAuthor: EventAuthorFactory,
+    private readonly makeTransport: RelayTransportFactory,
   ) {}
 
   async initialize(input: LaunchConfig): Promise<void> {
     this.shutdown();
-    this.pool = new RelayPool();
-    this.store = new EventStore();
+    this.observedEvents.clear();
+    this.transport = this.makeTransport();
     const author = this.makeAuthor();
     const publicKey = await author.getPublicKey();
     if (!validHex64(publicKey)) throw new Error("invalid author public key");
@@ -364,8 +370,10 @@ export class AoeNostrClient {
   }
 
   private observeRelayStatus(): void {
-    const subscription = this.pool.status$.subscribe({
-      next: (statuses: Record<string, RelayStatus>) => {
+    const transport = this.transport;
+    if (!transport) throw new Error("relay transport is not initialized");
+    const subscription = transport.observeStatus(
+      (statuses: Record<string, RelayStatus>) => {
         for (const [url, status] of Object.entries(statuses)) {
           this.relayStatus.set(url, status);
           const fingerprint = relayStatusFingerprint(status);
@@ -383,41 +391,43 @@ export class AoeNostrClient {
           }
         }
       },
-      error: (error: unknown) => this.status("relay_status_error", {message: String(error)}),
-    });
+      (error: unknown) => this.status("relay_status_error", {message: String(error)}),
+    );
     this.subscriptions.push(subscription);
   }
 
   private openRelaySubscription(relay: string): void {
+    const transport = this.transport;
+    if (!transport) throw new Error("relay transport is not initialized");
     this.matchSubscriptions.get(relay)?.unsubscribe();
     const filters = matchSubscriptionFilters(this.hostPublicKey, this.matchId);
-    const subscription = this.pool.req([relay], filters, {
-      waitForAuth: false,
-      resubscribe: true,
-      reconnect: true,
-    }).subscribe({
-      next: (message: GroupReqMessage) => this.receivePoolMessage(message),
-      error: (error: unknown) => this.status("subscription_error", {message: String(error)}),
-    });
+    const subscription = transport.subscribe(
+      relay,
+      filters,
+      (message: RelayMessage) => this.receivePoolMessage(message),
+      (error: unknown) => this.status("subscription_error", {
+        relay, message: String(error),
+      }),
+    );
     this.matchSubscriptions.set(relay, subscription);
   }
 
   private openDiscoverySubscription(relay: string): void {
+    const transport = this.transport;
+    if (!transport) throw new Error("relay transport is not initialized");
     this.discoverySubscriptions.get(relay)?.unsubscribe();
-    const subscription = this.pool.req([relay], lobbyDiscoveryFilters(), {
-      waitForAuth: false,
-      resubscribe: true,
-      reconnect: true,
-    }).subscribe({
-      next: (message: GroupReqMessage) => this.receiveDiscoveryMessage(message),
-      error: (error: unknown) => this.status("discovery_error", {
+    const subscription = transport.subscribe(
+      relay,
+      lobbyDiscoveryFilters(),
+      (message: RelayMessage) => this.receiveDiscoveryMessage(message),
+      (error: unknown) => this.status("discovery_error", {
         relay, message: String(error),
       }),
-    });
+    );
     this.discoverySubscriptions.set(relay, subscription);
   }
 
-  private receiveDiscoveryMessage(message: GroupReqMessage): void {
+  private receiveDiscoveryMessage(message: RelayMessage): void {
     if (!this.running || !this.discoveryMode) return;
     if (message.type !== "EVENT") {
       const detail = message.type === "CLOSED" ? message.reason :
@@ -499,7 +509,7 @@ export class AoeNostrClient {
     this.eoseRelays.delete(relay);
     this.matchSubscriptions.get(relay)?.unsubscribe();
     this.matchSubscriptions.delete(relay);
-    this.pool.remove(relay, true);
+    this.transport?.remove(relay);
     this.relayStatus.delete(relay);
     this.status("relay_disabled", {relay, reason});
   }
@@ -514,7 +524,7 @@ export class AoeNostrClient {
     }
   }
 
-  private receivePoolMessage(message: GroupReqMessage): void {
+  private receivePoolMessage(message: RelayMessage): void {
     if (!this.running) return;
     const detail = message.type === "CLOSED" ? message.reason :
       message.type === "ERROR" ? String(message.error) : undefined;
@@ -546,12 +556,12 @@ export class AoeNostrClient {
     }
     const event = message.event;
     if (!applicationTags(event.tags, this.matchId)) return;
-    const existed = this.store.hasEvent(event.id);
-    const accepted = this.store.add(event, message.from);
-    if (!accepted) {
+    if (!verifyEvent(event)) {
       this.status("event_rejected", {relay: message.from, event_id: event.id});
       return;
     }
+    const existed = this.observedEvents.has(event.id);
+    this.observedEvents.add(event.id);
     this.status("event_observed", {relay: message.from, event_id: event.id});
     if (!existed) this.emit("event", boundedEventEnvelope(event, message.from));
   }
@@ -568,11 +578,10 @@ export class AoeNostrClient {
       const results = await collectPublishQuorum(
         active,
         this.quorum,
-        (relay) => this.pool.publish([relay], event, {
-          reconnect: true,
-          retries: false,
-          timeout: 15000,
-        }),
+        (relay) => {
+          if (!this.transport) throw new Error("relay transport is not initialized");
+          return this.transport.publish(relay, event);
+        },
       );
       this.publishResult(intent.intent_id, event, results);
     } catch (error) {
@@ -621,11 +630,10 @@ export class AoeNostrClient {
     const results = await collectPublishQuorum(
       active,
       this.quorum,
-      (relay) => this.pool.publish([relay], event, {
-        reconnect: true,
-        retries: false,
-        timeout: 15000,
-      }),
+      (relay) => {
+        if (!this.transport) throw new Error("relay transport is not initialized");
+        return this.transport.publish(relay, event);
+      },
     );
     this.publishResult(`republish:${eventId}`, event, results);
   }
@@ -641,8 +649,8 @@ export class AoeNostrClient {
     }
     this.discoverySubscriptions.clear();
     for (const subscription of this.subscriptions.splice(0)) subscription.unsubscribe();
-    this.pool.close();
-    this.store.dispose();
+    this.transport?.close();
+    this.observedEvents.clear();
     this.signedEvents.clear();
     this.disabledRelays.clear();
     this.eoseRelays.clear();
@@ -655,6 +663,7 @@ export class AoeNostrClient {
     this.recentPublications = [];
     this.recentSubscriptionMessages = [];
     this.author = undefined;
+    this.transport = undefined;
   }
 
   diagnostics(): RuntimeDiagnostics {

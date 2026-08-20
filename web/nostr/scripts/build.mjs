@@ -25,10 +25,10 @@ const nappletBuild = await build({
 });
 
 const forbiddenInput = Object.keys(nappletBuild.metafile.inputs).find((input) =>
-  input.includes("applesauce-signers")
+  input.includes("applesauce-signers") || input.includes("applesauce-relay")
 );
 if (forbiddenInput) {
-  throw new Error(`napplet bundle includes private signer input: ${forbiddenInput}`);
+  throw new Error(`napplet bundle includes forbidden authority or relay input: ${forbiddenInput}`);
 }
 const nappletSource = await readFile(nappletOutfile, "utf8");
 for (const marker of [
@@ -37,8 +37,9 @@ for (const marker of [
   "napplet.identity.signEvent",
   "window.nostr",
   "globalThis.nostr",
+  "WebSocket",
 ]) {
   if (nappletSource.includes(marker)) {
-    throw new Error(`napplet bundle includes forbidden authority marker: ${marker}`);
+    throw new Error(`napplet bundle includes forbidden marker: ${marker}`);
   }
 }
