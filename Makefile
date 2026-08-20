@@ -19,7 +19,7 @@ endif
 
 .DEFAULT_GOAL := build
 
-.PHONY: all configure build run web web-build web-tests \
+.PHONY: all configure build run web web-build napplet-build web-tests \
 	web-tests-only audit-browser-risk-spike audit-browser-risk-spike-only \
 	audit-nostr-oracles audit-nostr-multiplayer test-nostr-multiplayer \
 	ci-nostr-visual-per-change ci-nostr-visual-display-matrix \
@@ -61,6 +61,17 @@ web-build:
 			-DAOE_BUILD_SDL3=ON \
 			-DAOE_ENABLE_MPG123=OFF && \
 		$(CMAKE) --build build-web --target aoe_web \
+			--parallel "$(JOBS)"
+
+napplet-build:
+	./web/bootstrap_emsdk.sh
+	. "build-web/emsdk/emsdk_env.sh" && \
+		emcmake $(CMAKE) -S . -B build-napplet \
+			-DCMAKE_BUILD_TYPE="$(BUILD_TYPE)" \
+			-DAOE_BUILD_NAPPLET=ON \
+			-DAOE_BUILD_SDL3=ON \
+			-DAOE_ENABLE_MPG123=OFF && \
+		$(CMAKE) --build build-napplet --target aoe_napplet \
 			--parallel "$(JOBS)"
 
 web: web-build
@@ -173,6 +184,7 @@ help:
 	@echo "make                 Configure and build"
 	@echo "make run             Build and launch the game"
 	@echo "make web-build       Build packaged web game"
+	@echo "make napplet-build   Build isolated napplet package skeleton"
 	@echo "make web             Build web game and serve it on http://localhost:$(WEB_PORT)"
 	@echo "make test            Build and run all tests"
 	@echo "make web-tests       Build web package and run browser-runtime tests"

@@ -1,4 +1,5 @@
 set(AOE_WEB_DIST_DIR "${CMAKE_BINARY_DIR}/dist")
+set(AOE_NAPPLET_DIST_DIR "${CMAKE_BINARY_DIR}/napplet-dist")
 set(AOE_WEB_ASSET_DIR "${CMAKE_BINARY_DIR}/web-assets")
 set(AOE_BROWSER_TEST_PYTHON "python3" CACHE STRING
     "Host Python command with Selenium for browser acceptance")
@@ -59,8 +60,8 @@ add_custom_target(web_asset_pack
     VERBATIM
 )
 
-add_executable(aoe_web
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/web_main.cpp"
+add_library(aoe_browser_app STATIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/browser_application.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/sdl_app.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/application_loop.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime_paths_web.cpp"
@@ -68,93 +69,123 @@ add_executable(aoe_web
     "${CMAKE_CURRENT_SOURCE_DIR}/src/audio_system_web.cpp"
 )
 target_include_directories(
-    aoe_web PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    aoe_browser_app PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
-target_link_libraries(aoe_web PRIVATE aoe_web_core SDL3::SDL3)
-target_compile_definitions(aoe_web PRIVATE
+target_link_libraries(aoe_browser_app PUBLIC aoe_web_core SDL3::SDL3)
+target_compile_definitions(aoe_browser_app PRIVATE
     AOE_BROWSER_FIXED_ASSET_SCOPE=1
     AOE_HAVE_NATIVE_MP3=0
     AOE_HAVE_MPG123=0
 )
-add_dependencies(aoe_web web_asset_pack nostr_browser_bundle)
-target_compile_options(aoe_web PRIVATE
+target_compile_options(aoe_browser_app PRIVATE
     -Wall
     -Wextra
     -Wpedantic
     -fexceptions
 )
-target_link_options(aoe_web PRIVATE
-    -fexceptions
-    "SHELL:-lidbfs.js"
-    "SHELL:-s ALLOW_MEMORY_GROWTH=1"
-    "SHELL:-s FORCE_FILESYSTEM=1"
-    "SHELL:-s MIN_WEBGL_VERSION=2"
-    "SHELL:-s MAX_WEBGL_VERSION=2"
-    "SHELL:-s EXIT_RUNTIME=0"
-    "SHELL:-s ENVIRONMENT=web"
-    "SHELL:-s INVOKE_RUN=0"
-    "SHELL:-s EXPORTED_RUNTIME_METHODS=['callMain','HEAPU8']"
-    "SHELL:-s EXPORTED_FUNCTIONS=['_main','_malloc','_free','_aoe_nostr_enqueue_event','_aoe_nostr_enqueue_status','_aoe_nostr_publish_result']"
-    "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
-    "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/browser_runtime.js"
-    "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/resources@/resources"
-    "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Bin@/game_data/Bin"
-    "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Data@/game_data/Data"
-    "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Terrain@/game_data/Terrain"
-)
-set_target_properties(aoe_web PROPERTIES
-    OUTPUT_NAME aoe_web
-    SUFFIX ".html"
-    RUNTIME_OUTPUT_DIRECTORY "${AOE_WEB_DIST_DIR}"
-    LINK_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html;${CMAKE_CURRENT_SOURCE_DIR}/web/browser_runtime.js;${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css;${AOE_NOSTR_BUNDLE};${AOE_WEB_ASSET_DIR}/web_asset_manifest.json"
-)
-add_custom_command(TARGET aoe_web POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E make_directory
-        "${AOE_WEB_DIST_DIR}/game_data/Sound/music"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory
-        "${AOE_WEB_DIST_DIR}/game_data/Sound/effects"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${AOE_WEB_ASSET_DIR}/game_data/Sound/music/xmusic1.mp3"
-        "${AOE_WEB_DIST_DIR}/game_data/Sound/music/xmusic1.mp3"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/game_data/Sound/effects"
-        "${AOE_WEB_DIST_DIR}/game_data/Sound/effects"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
-        "${AOE_WEB_DIST_DIR}/styles.css"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${AOE_NOSTR_BUNDLE}"
-        "${AOE_WEB_DIST_DIR}/aoe_nostr.js"
-    VERBATIM
-)
 
-add_custom_target(web_risk_spike
-    COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_build_web_asset_pack.py"
-    COMMAND "${AOE_BROWSER_TEST_PYTHON}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/browser_risk_spike_test.py"
-        --browser chrome
-        --evidence "${CMAKE_CURRENT_SOURCE_DIR}/artifacts/browser-risk-spike/evidence-chrome.json"
-    COMMAND "${AOE_BROWSER_TEST_PYTHON}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/browser_risk_spike_test.py"
-        --browser chrome
-        --display-matrix
-    COMMAND "${AOE_BROWSER_TEST_PYTHON}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/browser_risk_spike_test.py"
-        --browser chrome
-        --persistence-checks
-    DEPENDS aoe_web
-    USES_TERMINAL
-    VERBATIM
-)
+function(aoe_add_browser_executable target entrypoint output_name dist_dir)
+    add_executable(
+        "${target}" "${CMAKE_CURRENT_SOURCE_DIR}/${entrypoint}"
+    )
+    target_link_libraries("${target}" PRIVATE aoe_browser_app)
+    add_dependencies("${target}" web_asset_pack nostr_browser_bundle)
+    target_compile_options("${target}" PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -fexceptions
+    )
+    target_link_options("${target}" PRIVATE
+        -fexceptions
+        "SHELL:-lidbfs.js"
+        "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+        "SHELL:-s FORCE_FILESYSTEM=1"
+        "SHELL:-s MIN_WEBGL_VERSION=2"
+        "SHELL:-s MAX_WEBGL_VERSION=2"
+        "SHELL:-s EXIT_RUNTIME=0"
+        "SHELL:-s ENVIRONMENT=web"
+        "SHELL:-s INVOKE_RUN=0"
+        "SHELL:-s EXPORTED_RUNTIME_METHODS=['callMain','HEAPU8']"
+        "SHELL:-s EXPORTED_FUNCTIONS=['_main','_malloc','_free','_aoe_nostr_enqueue_event','_aoe_nostr_enqueue_status','_aoe_nostr_publish_result']"
+        "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+        "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/browser_runtime.js"
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/resources@/resources"
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Bin@/game_data/Bin"
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Data@/game_data/Data"
+        "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/game_data/Terrain@/game_data/Terrain"
+    )
+    set_target_properties("${target}" PROPERTIES
+        OUTPUT_NAME "${output_name}"
+        SUFFIX ".html"
+        RUNTIME_OUTPUT_DIRECTORY "${dist_dir}"
+        LINK_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html;${CMAKE_CURRENT_SOURCE_DIR}/web/browser_runtime.js;${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css;${AOE_NOSTR_BUNDLE};${AOE_WEB_ASSET_DIR}/web_asset_manifest.json"
+    )
+    add_custom_command(TARGET "${target}" POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${dist_dir}/game_data/Sound/music"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${dist_dir}/game_data/Sound/effects"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${AOE_WEB_ASSET_DIR}/game_data/Sound/music/xmusic1.mp3"
+            "${dist_dir}/game_data/Sound/music/xmusic1.mp3"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/game_data/Sound/effects"
+            "${dist_dir}/game_data/Sound/effects"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/web/styles.css"
+            "${dist_dir}/styles.css"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${AOE_NOSTR_BUNDLE}"
+            "${dist_dir}/aoe_nostr.js"
+        VERBATIM
+    )
+endfunction()
 
-add_custom_target(web_nostr_multiplayer_smoke
-    COMMAND "${AOE_BROWSER_TEST_PYTHON}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/nostr_multiplayer_smoke_test.py"
-        --evidence
-        "${CMAKE_CURRENT_SOURCE_DIR}/artifacts/nostr-multiplayer/production-smoke.json"
-    DEPENDS aoe_web
-    USES_TERMINAL
-    VERBATIM
-)
+if(AOE_BUILD_WEB)
+    aoe_add_browser_executable(
+        aoe_web src/web_main.cpp aoe_web "${AOE_WEB_DIST_DIR}"
+    )
+    target_compile_definitions(aoe_web PRIVATE AOE_WEB_BUILD=1)
+endif()
+
+if(AOE_BUILD_NAPPLET)
+    aoe_add_browser_executable(
+        aoe_napplet src/napplet_main.cpp aoe_napplet
+        "${AOE_NAPPLET_DIST_DIR}"
+    )
+    target_compile_definitions(aoe_napplet PRIVATE AOE_NAPPLET_BUILD=1)
+endif()
+
+if(AOE_BUILD_WEB)
+    add_custom_target(web_risk_spike
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_build_web_asset_pack.py"
+        COMMAND "${AOE_BROWSER_TEST_PYTHON}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/browser_risk_spike_test.py"
+            --browser chrome
+            --evidence "${CMAKE_CURRENT_SOURCE_DIR}/artifacts/browser-risk-spike/evidence-chrome.json"
+        COMMAND "${AOE_BROWSER_TEST_PYTHON}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/browser_risk_spike_test.py"
+            --browser chrome
+            --display-matrix
+        COMMAND "${AOE_BROWSER_TEST_PYTHON}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/browser_risk_spike_test.py"
+            --browser chrome
+            --persistence-checks
+        DEPENDS aoe_web
+        USES_TERMINAL
+        VERBATIM
+    )
+
+    add_custom_target(web_nostr_multiplayer_smoke
+        COMMAND "${AOE_BROWSER_TEST_PYTHON}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/web/nostr_multiplayer_smoke_test.py"
+            --evidence
+            "${CMAKE_CURRENT_SOURCE_DIR}/artifacts/nostr-multiplayer/production-smoke.json"
+        DEPENDS aoe_web
+        USES_TERMINAL
+        VERBATIM
+    )
+endif()
