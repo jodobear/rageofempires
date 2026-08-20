@@ -1314,7 +1314,7 @@ private:
         if (type == "republish_unavailable") {
             suspend(
                 MultiplayerReliabilityReason::backfill_incomplete,
-                "exact signed event unavailable for republication"
+                "cached event identity unavailable for republication"
             );
         }
     }
@@ -1872,7 +1872,7 @@ private:
                     !nostr_bridge_republish(found->second)) {
                     suspend(
                         MultiplayerReliabilityReason::backfill_incomplete,
-                        "missing exact signed turn event for sequence " +
+                        "missing cached turn event identity for sequence " +
                             std::to_string(sequence)
                     );
                     return;

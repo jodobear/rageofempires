@@ -127,7 +127,7 @@ test("napplet author publishes an exact template and preserves relay failures", 
   assert.equal(repair.event.id, publication.event.id);
 });
 
-test("napplet author rejects a re-signed cached event", async () => {
+test("napplet author accepts a valid new signature for cached event identity", async () => {
   const signer = new PrivateKeySigner();
   const signerPublicKey = await signer.getPublicKey();
   const sign = async (template: NostrEvent): Promise<NostrEvent> =>
@@ -160,9 +160,48 @@ test("napplet author rejects a re-signed cached event", async () => {
   );
   await author.getPublicKey();
 
+  const publication = await author.republishThroughShell(
+    original, ["wss://one.example/"],
+  );
+  assert.equal(publication.event.id, original.id);
+  assert.notEqual(publication.event.sig, original.sig);
+});
+
+test("napplet author rejects changed cached event identity", async () => {
+  const signer = new PrivateKeySigner();
+  const signerPublicKey = await signer.getPublicKey();
+  const sign = async (template: NostrEvent): Promise<NostrEvent> =>
+    EventFactory.fromKind(template.kind)
+      .content(template.content)
+      .created(template.created_at)
+      .modifyPublicTags(() => template.tags)
+      .as(signer)
+      .sign();
+  const original = await sign({
+    id: "0".repeat(64), pubkey: signerPublicKey, sig: "0".repeat(128),
+    kind: MATCH_KIND, content: "{}", tags: [["t", "aoe-reconstruction"]],
+    created_at: 1234,
+  });
+  const outbox: NappletOutboxCapability = {
+    async query() { throw new Error("unexpected query"); },
+    subscribe() { throw new Error("unexpected subscribe"); },
+    async publish(event) {
+      const changed = await sign({...(event as NostrEvent), content: "changed"});
+      assert.notEqual(changed.id, original.id);
+      return {
+        type: "outbox.publish.result", ok: true, event: changed,
+        eventId: changed.id, relays: {"wss://one.example/": true},
+      };
+    },
+  };
+  const author = new NappletEventAuthor(
+    {getPublicKey: async () => signerPublicKey}, outbox, () => 1234,
+  );
+  await author.getPublicKey();
+
   await assert.rejects(
     author.republishThroughShell(original, ["wss://one.example/"]),
-    /changed the cached signed event/,
+    /changed the cached event identity/,
   );
 });
 

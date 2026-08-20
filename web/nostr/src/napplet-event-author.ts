@@ -18,11 +18,10 @@ function sameTags(left: string[][], right: string[][]): boolean {
   );
 }
 
-function sameSignedEvent(left: NostrEvent, right: NostrEvent): boolean {
+function sameEventIdentity(left: NostrEvent, right: NostrEvent): boolean {
   return left.id === right.id && left.pubkey === right.pubkey &&
     left.created_at === right.created_at && left.kind === right.kind &&
-    left.content === right.content && left.sig === right.sig &&
-    sameTags(left.tags, right.tags);
+    left.content === right.content && sameTags(left.tags, right.tags);
 }
 
 function shellResults(
@@ -84,8 +83,8 @@ export class NappletEventAuthor implements EventAuthor {
     relays: string[],
   ): Promise<AuthoredPublication> {
     const publication = await this.publishTemplate(event, relays);
-    if (!sameSignedEvent(publication.event, event)) {
-      throw new Error("napplet shell changed the cached signed event");
+    if (!sameEventIdentity(publication.event, event)) {
+      throw new Error("napplet shell changed the cached event identity");
     }
     return publication;
   }
