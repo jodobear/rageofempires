@@ -132,6 +132,9 @@ if(AOE_BUILD_WEB)
         "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
     )
     add_dependencies(aoe_web nostr_browser_bundle)
+    set_property(TARGET aoe_web APPEND PROPERTY LINK_DEPENDS
+        "${AOE_NOSTR_BUNDLE}"
+    )
     target_compile_definitions(aoe_web PRIVATE AOE_WEB_BUILD=1)
     target_link_options(aoe_web PRIVATE
         "SHELL:--preload-file ${AOE_WEB_ASSET_DIR}/resources@/resources"
