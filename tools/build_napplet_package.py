@@ -12,6 +12,13 @@ from pathlib import Path
 NAPPLET_KIND = 35129
 NAPPLET_TYPE = "rageofempires"
 REQUIRED_CAPABILITIES = ("identity", "outbox", "storage")
+FORBIDDEN_AUTHORITY_MARKERS = (
+    "PrivateKeySigner",
+    "identity.signEvent",
+    "napplet.identity.signEvent",
+    "window.nostr",
+    "globalThis.nostr",
+)
 STYLESHEET_TAG = '<link rel="stylesheet" href="styles.css">'
 NOSTR_SCRIPT_TAG = '<script src="aoe_nostr.js"></script>'
 EXTERNAL_SUBRESOURCE = re.compile(
@@ -100,6 +107,11 @@ def verify_package(html_path: Path, manifest_path: Path) -> None:
     if external_reference:
         reference = external_reference.group(1)
         raise ValueError(f"external runtime subresource remains: {reference}")
+    for marker in FORBIDDEN_AUTHORITY_MARKERS:
+        if marker in html:
+            raise ValueError(
+                f"napplet contains forbidden authority marker: {marker}"
+            )
     package_files = sorted(
         path.name for path in html_path.parent.iterdir() if path.is_file()
     )

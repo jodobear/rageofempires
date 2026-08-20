@@ -1,4 +1,5 @@
 import {AoeNostrClient, BridgeChannel} from "./runtime.js";
+import type {EventAuthorFactory} from "./event-author.js";
 import {sameRelayPool} from "./protocol.js";
 import type {EventIntent, LaunchConfig} from "./protocol.js";
 
@@ -65,74 +66,75 @@ function emit(channel: BridgeChannel, json: string): void {
   }
 }
 
-let client: AoeNostrClient | undefined;
-
-const facade = {
-  async initialize(config: LaunchConfig): Promise<void> {
-    client?.shutdown();
-    client = new AoeNostrClient(emit);
-    if (globalThis.Module) {
-      globalThis.Module.browserNostrShutdownDiagnostics = null;
-      globalThis.Module.browserNostrDiagnostics = () => ({
-        ...(client?.diagnostics() as Record<string, unknown> ?? {}),
-        shutdown: globalThis.Module?.browserNostrShutdownDiagnostics ?? null,
-        game: globalThis.Module?.browserNostrGameDiagnostics ?? null,
-      });
-    }
-    try {
-      const canonicalRelays = globalThis.Module?.canonicalNostrRelays;
-      if (!canonicalRelays || !sameRelayPool(config.relays, canonicalRelays)) {
-        throw new Error("runtime relay pool differs from packaged production");
+export function installAoeNostrRuntime(
+  makeAuthor: EventAuthorFactory,
+): AoeNostrFacade {
+  let client: AoeNostrClient | undefined;
+  const facade: AoeNostrFacade = {
+    async initialize(config: LaunchConfig): Promise<void> {
+      client?.shutdown();
+      client = new AoeNostrClient(emit, makeAuthor);
+      if (globalThis.Module) {
+        globalThis.Module.browserNostrShutdownDiagnostics = null;
+        globalThis.Module.browserNostrDiagnostics = () => ({
+          ...(client?.diagnostics() as Record<string, unknown> ?? {}),
+          shutdown: globalThis.Module?.browserNostrShutdownDiagnostics ?? null,
+          game: globalThis.Module?.browserNostrGameDiagnostics ?? null,
+        });
       }
-      await client.initialize(config);
-      const diagnostics = client.diagnostics();
-      if (diagnostics.relayPoolDigest !==
-          globalThis.Module?.canonicalNostrRelayDigest) {
-        throw new Error("runtime relay digest differs from packaged production");
+      try {
+        const canonicalRelays = globalThis.Module?.canonicalNostrRelays;
+        if (!canonicalRelays || !sameRelayPool(config.relays, canonicalRelays)) {
+          throw new Error("runtime relay pool differs from packaged production");
+        }
+        await client.initialize(config);
+        const diagnostics = client.diagnostics();
+        if (diagnostics.relayPoolDigest !==
+            globalThis.Module?.canonicalNostrRelayDigest) {
+          throw new Error("runtime relay digest differs from packaged production");
+        }
+      } catch (error) {
+        emit("status", JSON.stringify({type: "fatal", message: String(error)}));
       }
-    } catch (error) {
-      emit("status", JSON.stringify({type: "fatal", message: String(error)}));
-    }
-  },
-  publish(intent: EventIntent): void {
-    void client?.publish(intent);
-  },
-  subscribe(): void {
-    // Subscription is established atomically by initialize(). Kept as narrow
-    // bridge compatibility surface for future filter changes.
-  },
-  republish(eventId: string): void {
-    void client?.republish(eventId);
-  },
-  setRelayEnabled(relay: string, enabled: boolean): void {
-    client?.setRelayEnabled(relay, enabled);
-  },
-  refreshSubscriptions(): void {
-    client?.refreshSubscriptions();
-  },
-  selectLobby(matchReference: string): void {
-    client?.selectLobby(matchReference);
-  },
-  shutdown(): void {
-    const hadClient = client !== undefined;
-    const finalDiagnostics = client?.diagnostics() ?? null;
-    if (globalThis.Module) {
-      globalThis.Module.browserNostrShutdownDiagnostics =
-        makeShutdownDiagnostics(
-          globalThis.Module.browserShutdownDiagnostics,
-          finalDiagnostics,
-          hadClient,
-          Date.now(),
-        );
-    }
-    client?.shutdown();
-    client = undefined;
-  },
-  diagnostics(): unknown {
-    return client?.diagnostics() ?? null;
-  },
-};
-
-globalThis.AoeNostrRuntime = facade;
-
-export {facade as AoeNostrRuntime};
+    },
+    publish(intent: EventIntent): void {
+      void client?.publish(intent);
+    },
+    subscribe(): void {
+      // Subscription is established atomically by initialize(). Kept as narrow
+      // bridge compatibility surface for future filter changes.
+    },
+    republish(eventId: string): void {
+      void client?.republish(eventId);
+    },
+    setRelayEnabled(relay: string, enabled: boolean): void {
+      client?.setRelayEnabled(relay, enabled);
+    },
+    refreshSubscriptions(): void {
+      client?.refreshSubscriptions();
+    },
+    selectLobby(matchReference: string): void {
+      client?.selectLobby(matchReference);
+    },
+    shutdown(): void {
+      const hadClient = client !== undefined;
+      const finalDiagnostics = client?.diagnostics() ?? null;
+      if (globalThis.Module) {
+        globalThis.Module.browserNostrShutdownDiagnostics =
+          makeShutdownDiagnostics(
+            globalThis.Module.browserShutdownDiagnostics,
+            finalDiagnostics,
+            hadClient,
+            Date.now(),
+          );
+      }
+      client?.shutdown();
+      client = undefined;
+    },
+    diagnostics(): unknown {
+      return client?.diagnostics() ?? null;
+    },
+  };
+  globalThis.AoeNostrRuntime = facade;
+  return facade;
+}

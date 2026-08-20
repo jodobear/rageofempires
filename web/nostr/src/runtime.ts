@@ -1,9 +1,10 @@
-import {EventFactory, EventStore} from "applesauce-core";
+import {EventStore} from "applesauce-core";
 import type {NostrEvent} from "applesauce-core/helpers/event";
 import {RelayPool} from "applesauce-relay";
 import type {GroupReqMessage, PublishResponse, RelayStatus} from "applesauce-relay/types";
-import {PrivateKeySigner} from "applesauce-signers";
 import type {Subscription} from "rxjs";
+
+import type {EventAuthor, EventAuthorFactory} from "./event-author.js";
 
 import {
   applicationTags,
@@ -227,7 +228,7 @@ function boundedEventEnvelope(event: NostrEvent, relay: string): string {
 export class AoeNostrClient {
   private pool = new RelayPool();
   private store = new EventStore();
-  private signer = new PrivateKeySigner();
+  private author: EventAuthor | undefined;
   private subscriptions: Subscription[] = [];
   private matchSubscriptions = new Map<string, Subscription>();
   private discoverySubscriptions = new Map<string, Subscription>();
@@ -252,15 +253,21 @@ export class AoeNostrClient {
   private quorum = 2;
   private running = false;
 
-  constructor(private readonly emit: BridgeEmitter) {}
+  constructor(
+    private readonly emit: BridgeEmitter,
+    private readonly makeAuthor: EventAuthorFactory,
+  ) {}
 
   async initialize(input: LaunchConfig): Promise<void> {
     this.shutdown();
     this.pool = new RelayPool();
     this.store = new EventStore();
-    this.signer = new PrivateKeySigner();
+    const author = this.makeAuthor();
+    const publicKey = await author.getPublicKey();
+    if (!validHex64(publicKey)) throw new Error("invalid author public key");
+    this.author = author;
+    this.publicKey = publicKey;
     this.running = true;
-    this.publicKey = await this.signer.getPublicKey();
     const configuredRelays = validateRelays(
       input.relays, input.one_relay_development
     );
@@ -552,11 +559,8 @@ export class AoeNostrClient {
   async publish(untrusted: EventIntent): Promise<void> {
     const intent = validateIntent(untrusted);
     try {
-      const event = await EventFactory.fromKind(intent.kind)
-        .content(intent.content)
-        .modifyPublicTags((tags) => [...tags, ...intent.tags])
-        .as(this.signer)
-        .sign();
+      if (!this.author) throw new Error("event author is not initialized");
+      const event = await this.author.createEvent(intent);
       if (intent.cache) this.signedEvents.set(event.id, event);
       const active = readyPublishRelays(
         this.relays, this.disabledRelays, this.relayStatus,
@@ -650,6 +654,7 @@ export class AoeNostrClient {
     this.discoveryMode = false;
     this.recentPublications = [];
     this.recentSubscriptionMessages = [];
+    this.author = undefined;
   }
 
   diagnostics(): RuntimeDiagnostics {
