@@ -39,10 +39,11 @@ EM_JS(bool, browser_audio_start, (), {
     Module.audioState = state;
     telemetry.starts += 1;
     telemetry.liveMusicInstances += 1;
-    const fail = (kind, reason) => {
+    // Audio is optional. Runtime policy or codec refusal must stay observable
+    // without converting an otherwise playable game into a startup failure.
+    const diagnose = (kind, reason) => {
       const message = kind + ': ' + reason;
       telemetry.errors.push(message);
-      Module.reportFailure(message);
     };
     const deferForGesture = reason => {
       if (reason?.name !== 'NotAllowedError') return false;
@@ -56,13 +57,13 @@ EM_JS(bool, browser_audio_start, (), {
         telemetry.musicPlayAttempts += 1;
         const musicPlay = state.music.play();
         if (musicPlay) musicPlay.catch(reason => {
-          if (!deferForGesture(reason)) fail('Music unlock failed', reason);
+          if (!deferForGesture(reason)) diagnose('Music unlock failed', reason);
         });
       }
     };
     window.addEventListener('pointerdown', state.unlock, true);
     window.addEventListener('keydown', state.unlock, true);
-    state.music.addEventListener('error', () => fail(
+    state.music.addEventListener('error', () => diagnose(
       'Music media error', state.music.error?.message || state.music.error?.code
     ), {once: true});
     telemetry.musicPlayAttempts += 1;
@@ -70,7 +71,7 @@ EM_JS(bool, browser_audio_start, (), {
     if (play) play.catch(reason => {
       if (reason?.name === 'AbortError' &&
           (state.paused || Module.audioState !== state)) return;
-      if (!deferForGesture(reason)) fail('Music unlock failed', reason);
+      if (!deferForGesture(reason)) diagnose('Music unlock failed', reason);
     });
     return true;
 });
@@ -111,7 +112,6 @@ EM_JS(void, browser_audio_set_paused, (bool paused), {
             (state.paused || Module.audioState !== state)) return;
         const message = 'Music resume failed: ' + reason;
         Module.browserAudioTelemetry.errors.push(message);
-        Module.reportFailure(message);
       });
       for (const effect of state.effects) {
         const effectPlay = effect.play();
